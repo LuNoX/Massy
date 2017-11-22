@@ -17,6 +17,7 @@ Hello! I am Massy, a bot that can calculate the center of mass of a 2D-shape giv
 initial_extensions = [
     'cogs.mod',
     'cogs.admin',
+    'cogs.massy'
 ]
 
 discord_logger = logging.getLogger('discord')
