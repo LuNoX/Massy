@@ -35,24 +35,37 @@ class Massy:
         shape_mask = cv2.inRange(cv2_image, bounds[0], bounds[1])
         hierarchy, contours, contour_mask = cv2.findContours(shape_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        cv2.imshow('Mask', shape_mask)
-        number_of_colours = len(parsed_args.contour_colours)
-        counter = 0
-        colours_to_use = []
-        for i in parsed_args.contour_colours:
-            colour = (i[::-1])
-            colours_to_use.append(colour)
-        for i in contours:
-            if counter >= number_of_colours:
-                counter = 0
-            cv2.drawContours(cv2_image, [i], -1, colours_to_use[counter], 2)
-            counter += 1
-        cv2.imshow('Image', cv2_image)
+        # cv2.imshow('Mask', shape_mask)
+
+        if parsed_args.manual_select is True:
+            number_of_colours = len(parsed_args.contour_colours)
+            counter = 0
+            for i in contours:
+                if counter >= number_of_colours:
+                    counter = 0
+                print(len(i))
+                cv2.drawContours(cv2_image, [i], -1, parsed_args.contour_colours[counter][::-1], 2)
+                counter += 1
+                cv2.imshow('Image', cv2_image)
+                # TODO: ask user which shape to take
+        else:
+            most_complex_contour = (0, contours[0])
+            for i in contours:
+                if len(i) > most_complex_contour[0]:
+                    most_complex_contour = (len(i), i)
+            cv2.drawContours(cv2_image, [most_complex_contour[1]], -1, parsed_args.contour_colours[0][::-1], 2)
+            cv2.imshow('Image', cv2_image) # debug
+
+        # TODO: delete everything but the contour (and whats inside)
+        # TODO: get all the remaining pixels
+        # TODO: determine center of mass based on pixels
+        # TODO: draw center of mass and display image
+
         cv2.waitKey(0)
 
     def parse_arguments(self, args):
         parser = argparse.ArgumentParser()
-        parser.add_argument('--manual_select', action='store_true', dest='manual_select', default=True)
+        parser.add_argument('--manual_select', action='store_true', dest='manual_select', default=False)
         parser.add_argument('--lower_bound', type=int, dest='lower_bound', default=0)
         parser.add_argument('--lower_red', type=int, dest='lower_red')
         parser.add_argument('--lower_green', type=int, dest='lower_green')
