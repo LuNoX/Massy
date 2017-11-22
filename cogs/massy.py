@@ -24,9 +24,31 @@ class Massy:
     @commands.command(name='centerOfMass', aliases=['centerofmass'], pass_context=True)
     async def center_of_mass(self, ctx, url: str, *args):
         parsed_args = self.parse_arguments(args)
-        imgbytes = BytesIO(await self.get_image_from_url(url))
-        img = Image.open(imgbytes)
-        img.show()
+        imagebytes = BytesIO(await self.get_image_from_url(url))
+        pil_image = Image.open(imagebytes).convert('RGB')
+
+        bounds = self.determine_bounds(parsed_args)
+        cv2_image = numpy.array(pil_image)
+        # Convert RGB to BGR
+        cv2_image = cv2_image[:, :, ::-1].copy()
+
+        shape_mask = cv2.inRange(cv2_image, bounds[0], bounds[1])
+        hierarchy, contours, contour_mask = cv2.findContours(shape_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        cv2.imshow('Mask', shape_mask)
+        number_of_colours = len(parsed_args.contour_colours)
+        counter = 0
+        colours_to_use = []
+        for i in parsed_args.contour_colours:
+            colour = (i[::-1])
+            colours_to_use.append(colour)
+        for i in contours:
+            if counter >= number_of_colours:
+                counter = 0
+            cv2.drawContours(cv2_image, [i], -1, colours_to_use[counter], 2)
+            counter += 1
+        cv2.imshow('Image', cv2_image)
+        cv2.waitKey(0)
 
     def parse_arguments(self, args):
         parser = argparse.ArgumentParser()
@@ -35,12 +57,12 @@ class Massy:
         parser.add_argument('--lower_red', type=int, dest='lower_red')
         parser.add_argument('--lower_green', type=int, dest='lower_green')
         parser.add_argument('--lower_blue', type=int, dest='lower_blue')
-        parser.add_argument('--upper_bound', type=int, dest='upper_bound', default=0)
+        parser.add_argument('--upper_bound', type=int, dest='upper_bound', default=15)
         parser.add_argument('--upper_red', type=int, dest='upper_red')
         parser.add_argument('--upper_green', type=int, dest='upper_green')
         parser.add_argument('--upper_blue', type=int, dest='upper_blue')
         parser.add_argument('--contour_colours', '--contour_colors', type=list, dest='contour_colours',
-                            default=[(256, 0, 0)])
+                            default=[(255, 0, 0)])
         parsed_args = parser.parse_args(args)
         return parsed_args
 
@@ -48,6 +70,36 @@ class Massy:
         async with self.bot.aiosession.get(url) as response:
             img = await response.content.read()
         return img
+
+    def determine_bounds(self, args):
+        if args.lower_red is None:
+            lower_red = args.lower_bound
+        else:
+            lower_red = args.lower_red
+        if args.lower_green is None:
+            lower_green = args.lower_bound
+        else:
+            lower_green = args.lower_green
+        if args.lower_blue is None:
+            lower_blue = args.lower_bound
+        else:
+            lower_blue = args.lower_blue
+        if args.upper_red is None:
+            upper_red = args.upper_bound
+        else:
+            upper_red = args.upper_red
+        if args.upper_green is None:
+            upper_green = args.upper_bound
+        else:
+            upper_green = args.upper_green
+        if args.upper_blue is None:
+            upper_blue = args.upper_bound
+        else:
+            upper_blue = args.upper_blue
+        # CV takes input in BGR instead or RGB
+        lower = numpy.array([lower_blue, lower_green, lower_red])
+        upper = numpy.array([upper_blue, upper_green, upper_red])
+        return [lower, upper]
 
     @commands.command(name='test', pass_context=True)
     @checks.admin_or_permissions()
