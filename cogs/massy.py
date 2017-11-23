@@ -45,7 +45,6 @@ class Massy:
             for i in contours:
                 if counter >= number_of_colours:
                     counter = 0
-                print(len(i))
                 cv2.drawContours(cv2_image, [i], -1, parsed_args.contour_colours[counter][::-1], 2)
                 counter += 1
                 cv2.imshow('Image', cv2_image)
@@ -59,16 +58,20 @@ class Massy:
             contours.remove(most_complex_contour[1])
             for i in contours:
                 cv2.drawContours(shape_mask, [i], -1, (0, 0, 0), -1)
-        # cv2.imshow('Image', cv2_image) # debug
-        # cv2.imshow('Mask', shape_mask)  # debug
 
         center_of_mass = self.determine_center_of_mass(shape_mask)
+        # TODO: use appropriate colour
         cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 10, (255, 0, 0)[::-1], 4)
         cv2.imshow('Result', cv2_image)
-
-        # TODO: draw center of mass and display image
-
         cv2.waitKey(0)
+
+        image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
+        byte_image = BytesIO()
+        pil_image = Image.fromarray(image)
+        pil_image.save(byte_image, format='png')
+        byte_image.seek(0)
+
+        await self.bot.send_file(ctx.message.channel, byte_image, filename="Center of Mass2.png")
 
     def parse_arguments(self, args):
         parser = argparse.ArgumentParser()
@@ -123,20 +126,14 @@ class Massy:
 
     def determine_center_of_mass(self, binary_image):
         non_zero = cv2.findNonZero(binary_image)
-
         center_of_mass_x = 0
         for i in non_zero:
             center_of_mass_x += i[0][0]
         center_of_mass_x = int(math.floor(center_of_mass_x/len(non_zero))) # TODO: catch exception
-
         center_of_mass_y = 0
         for i in non_zero:
             center_of_mass_y += i[0][1]
         center_of_mass_y = int(math.floor(center_of_mass_y/len(non_zero))) # TODO: catch exception
-
-        print(center_of_mass_x)
-        print(center_of_mass_y)
-
         return (center_of_mass_x, center_of_mass_y)
 
     @commands.command(name='test', pass_context=True)
