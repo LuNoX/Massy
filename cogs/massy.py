@@ -6,6 +6,7 @@ from io import BytesIO
 import numpy
 import cv2
 import argparse
+import math
 
 
 class Massy:
@@ -21,12 +22,15 @@ class Massy:
     # b) ask the user for the correct shape
     # 5. do the center of mass calculation for that shape
 
+    #so I've got a cv2 image (which is a numbpy array of BGR values. Whats the best way to display it in discord?
+
     @commands.command(name='centerOfMass', aliases=['centerofmass'], pass_context=True)
     async def center_of_mass(self, ctx, url: str, *args):
         parsed_args = self.parse_arguments(args)
         imagebytes = BytesIO(await self.get_image_from_url(url))
         pil_image = Image.open(imagebytes).convert('RGB')
 
+        # TODO: put this in a separate method
         bounds = self.determine_bounds(parsed_args)
         cv2_image = numpy.array(pil_image)
         # Convert RGB to BGR
@@ -34,8 +38,6 @@ class Massy:
 
         shape_mask = cv2.inRange(cv2_image, bounds[0], bounds[1])
         hierarchy, contours, contour_mask = cv2.findContours(shape_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        # cv2.imshow('Mask', shape_mask)
 
         if parsed_args.manual_select is True:
             number_of_colours = len(parsed_args.contour_colours)
@@ -47,18 +49,23 @@ class Massy:
                 cv2.drawContours(cv2_image, [i], -1, parsed_args.contour_colours[counter][::-1], 2)
                 counter += 1
                 cv2.imshow('Image', cv2_image)
-                # TODO: ask user which shape to take
+                # TODO: ask user which shape to use
         else:
             most_complex_contour = (0, contours[0])
             for i in contours:
                 if len(i) > most_complex_contour[0]:
                     most_complex_contour = (len(i), i)
             cv2.drawContours(cv2_image, [most_complex_contour[1]], -1, parsed_args.contour_colours[0][::-1], 2)
-            cv2.imshow('Image', cv2_image) # debug
+            contours.remove(most_complex_contour[1])
+            for i in contours:
+                cv2.drawContours(shape_mask, [i], -1, (0, 0, 0), -1)
+        # cv2.imshow('Image', cv2_image) # debug
+        # cv2.imshow('Mask', shape_mask)  # debug
 
-        # TODO: delete everything but the contour (and whats inside)
-        # TODO: get all the remaining pixels
-        # TODO: determine center of mass based on pixels
+        center_of_mass = self.determine_center_of_mass(shape_mask)
+        cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 10, (255, 0, 0)[::-1], 4)
+        cv2.imshow('Result', cv2_image)
+
         # TODO: draw center of mass and display image
 
         cv2.waitKey(0)
@@ -113,6 +120,24 @@ class Massy:
         lower = numpy.array([lower_blue, lower_green, lower_red])
         upper = numpy.array([upper_blue, upper_green, upper_red])
         return [lower, upper]
+
+    def determine_center_of_mass(self, binary_image):
+        non_zero = cv2.findNonZero(binary_image)
+
+        center_of_mass_x = 0
+        for i in non_zero:
+            center_of_mass_x += i[0][0]
+        center_of_mass_x = int(math.floor(center_of_mass_x/len(non_zero))) # TODO: catch exception
+
+        center_of_mass_y = 0
+        for i in non_zero:
+            center_of_mass_y += i[0][1]
+        center_of_mass_y = int(math.floor(center_of_mass_y/len(non_zero))) # TODO: catch exception
+
+        print(center_of_mass_x)
+        print(center_of_mass_y)
+
+        return (center_of_mass_x, center_of_mass_y)
 
     @commands.command(name='test', pass_context=True)
     @checks.admin_or_permissions()
