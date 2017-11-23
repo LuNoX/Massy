@@ -17,28 +17,34 @@ class Massy:
 
     # 1. get url                                               X
     # 2. save image from url                                   X
-    # 3. do shape recognition
-    # 4.a) take the biggest shape
+    # 3. do shape recognition                                  X
+    # 4.a) take the biggest shape                              X
     # b) ask the user for the correct shape
-    # 5. do the center of mass calculation for that shape
-
-    #so I've got a cv2 image (which is a numbpy array of BGR values. Whats the best way to display it in discord?
+    # 5. do the center of mass calculation for that shape      X
+    # 6. display center of mass                                X
 
     @commands.command(name='centerOfMass', aliases=['centerofmass'], pass_context=True)
     async def center_of_mass(self, ctx, url: str, *args):
+        # Parse args
         parsed_args = self.parse_arguments(args)
-        imagebytes = BytesIO(await self.get_image_from_url(url))
-        pil_image = Image.open(imagebytes).convert('RGB')
 
-        # TODO: put this in a separate method
-        bounds = self.determine_bounds(parsed_args)
+        # Fetch image
+        async with self.bot.aiosession.get(url) as response:
+            img_from_url = await response.content.read()
+        pil_image = Image.open(BytesIO(img_from_url)).convert('RGB')
+
+        # Convert PIL to CV2
         cv2_image = numpy.array(pil_image)
-        # Convert RGB to BGR
-        cv2_image = cv2_image[:, :, ::-1].copy()
+        cv2_image = cv2_image[:, :, ::-1].copy()  # Convert RGB to BGR
 
+        # Turn image into binary image
+        bounds = self.determine_bounds(parsed_args)
         shape_mask = cv2.inRange(cv2_image, bounds[0], bounds[1])
+
+        # Determine shape contours
         hierarchy, contours, contour_mask = cv2.findContours(shape_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
+        # Determine correct shape and remove everything else
         if parsed_args.manual_select is True:
             number_of_colours = len(parsed_args.contour_colours)
             counter = 0
@@ -60,18 +66,18 @@ class Massy:
                 cv2.drawContours(shape_mask, [i], -1, (0, 0, 0), -1)
 
         center_of_mass = self.determine_center_of_mass(shape_mask)
+        # Draw Center of mass
         # TODO: use appropriate colour
         cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 10, (255, 0, 0)[::-1], 4)
-        cv2.imshow('Result', cv2_image)
-        cv2.waitKey(0)
 
-        image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
-        byte_image = BytesIO()
-        pil_image = Image.fromarray(image)
-        pil_image.save(byte_image, format='png')
-        byte_image.seek(0)
+        image_ready_to_be_sent = self.convert_cv2_image_to_byte_image_png(cv2_image)
 
-        await self.bot.send_file(ctx.message.channel, byte_image, filename="Center of Mass2.png")
+        # Send image
+        # TODO: (optional) include the original name in new file name
+        await self.bot.send_file(ctx.message.channel, image_ready_to_be_sent, filename="Center of Mass.png",
+                                 content='I have calculated the center of mass to be at ({0}|{1}).'.format(
+                                     center_of_mass[0],
+                                     center_of_mass[1]), )
 
     def parse_arguments(self, args):
         parser = argparse.ArgumentParser()
@@ -129,12 +135,20 @@ class Massy:
         center_of_mass_x = 0
         for i in non_zero:
             center_of_mass_x += i[0][0]
-        center_of_mass_x = int(math.floor(center_of_mass_x/len(non_zero))) # TODO: catch exception
+        center_of_mass_x = int(math.floor(center_of_mass_x / len(non_zero)))  # TODO: catch exception
         center_of_mass_y = 0
         for i in non_zero:
             center_of_mass_y += i[0][1]
-        center_of_mass_y = int(math.floor(center_of_mass_y/len(non_zero))) # TODO: catch exception
+        center_of_mass_y = int(math.floor(center_of_mass_y / len(non_zero)))  # TODO: catch exception
         return (center_of_mass_x, center_of_mass_y)
+
+    def convert_cv2_image_to_byte_image_png(self, cv2_image):
+        image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
+        byte_image = BytesIO()
+        pil_image = Image.fromarray(image)
+        pil_image.save(byte_image, format='png')
+        byte_image.seek(0)
+        return byte_image
 
     @commands.command(name='test', pass_context=True)
     @checks.admin_or_permissions()
