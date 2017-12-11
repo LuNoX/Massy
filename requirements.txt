@@ -1,1 +1,5 @@
 discord.py
+aiohttp
+PIL
+numpy
+cv2
