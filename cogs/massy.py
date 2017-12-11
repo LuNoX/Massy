@@ -27,6 +27,7 @@ class Massy:
     async def center_of_mass(self, ctx, url: str, *args):
         # Parse args
         parsed_args = self.parse_arguments(args)
+        parsed_args.contour_colours = self.convert_contour_colours_into_list_of_tuples(parsed_args.contour_colours)
 
         # Fetch image
         async with self.bot.aiosession.get(url) as response:
@@ -38,8 +39,11 @@ class Massy:
         cv2_image = cv2_image[:, :, ::-1].copy()  # Convert RGB to BGR
 
         # Turn image into binary image
-        bounds = self.determine_bounds(parsed_args)
-        shape_mask = cv2.inRange(cv2_image, bounds[0], bounds[1])
+        lower_bound = numpy.array(parsed_args.lower_bound[::-1])
+        upper_bound = numpy.array(parsed_args.upper_bound[::-1])
+        shape_mask = cv2.inRange(cv2_image, lower_bound, upper_bound)
+        if parsed_args.inverse is True:
+            shape_mask = cv2.bitwise_not(shape_mask)
 
         # Determine shape contours
         hierarchy, contours, contour_mask = cv2.findContours(shape_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
@@ -79,19 +83,15 @@ class Massy:
                                      center_of_mass[0],
                                      center_of_mass[1]), )
 
+    # TODO: make args not be terminated by kommas
     def parse_arguments(self, args):
         parser = argparse.ArgumentParser()
         parser.add_argument('--manual_select', action='store_true', dest='manual_select', default=False)
-        parser.add_argument('--lower_bound', type=int, dest='lower_bound', default=0)
-        parser.add_argument('--lower_red', type=int, dest='lower_red')
-        parser.add_argument('--lower_green', type=int, dest='lower_green')
-        parser.add_argument('--lower_blue', type=int, dest='lower_blue')
-        parser.add_argument('--upper_bound', type=int, dest='upper_bound', default=15)
-        parser.add_argument('--upper_red', type=int, dest='upper_red')
-        parser.add_argument('--upper_green', type=int, dest='upper_green')
-        parser.add_argument('--upper_blue', type=int, dest='upper_blue')
-        parser.add_argument('--contour_colours', '--contour_colors', type=list, dest='contour_colours',
-                            default=[(255, 0, 0)])
+        parser.add_argument('--inverse', action='store_true', dest='inverse', default=False)
+        parser.add_argument('--lower_bound', nargs="+", type=int, dest='lower_bound', default=[0, 0, 0])
+        parser.add_argument('--upper_bound', nargs="+", type=int, dest='upper_bound', default=[15, 15, 15])
+        parser.add_argument('--contour_colours', '--contour_colors', nargs="+", type=int, dest='contour_colours',
+                            default=[255, 0, 0])
         parsed_args = parser.parse_args(args)
         return parsed_args
 
@@ -100,35 +100,17 @@ class Massy:
             img = await response.content.read()
         return img
 
-    def determine_bounds(self, args):
-        if args.lower_red is None:
-            lower_red = args.lower_bound
-        else:
-            lower_red = args.lower_red
-        if args.lower_green is None:
-            lower_green = args.lower_bound
-        else:
-            lower_green = args.lower_green
-        if args.lower_blue is None:
-            lower_blue = args.lower_bound
-        else:
-            lower_blue = args.lower_blue
-        if args.upper_red is None:
-            upper_red = args.upper_bound
-        else:
-            upper_red = args.upper_red
-        if args.upper_green is None:
-            upper_green = args.upper_bound
-        else:
-            upper_green = args.upper_green
-        if args.upper_blue is None:
-            upper_blue = args.upper_bound
-        else:
-            upper_blue = args.upper_blue
-        # CV takes input in BGR instead or RGB
-        lower = numpy.array([lower_blue, lower_green, lower_red])
-        upper = numpy.array([upper_blue, upper_green, upper_red])
-        return [lower, upper]
+    def convert_contour_colours_into_list_of_tuples(self, contour_colours):
+        # Make the list a multiple of 3 long
+        offset = 3-len(contour_colours)%3
+        for i in range(offset):
+            contour_colours.append(0)
+        # Generate the tuples and add them to the list
+        list_of_tuples = []
+        for i in range(int(len(contour_colours)/3)):
+            colour = (contour_colours[3*i], contour_colours[3*i+1], contour_colours[3*i+2])
+            list_of_tuples.append(colour)
+        return list_of_tuples
 
     def determine_center_of_mass(self, binary_image):
         non_zero = cv2.findNonZero(binary_image)
@@ -140,7 +122,8 @@ class Massy:
         for i in non_zero:
             center_of_mass_y += i[0][1]
         center_of_mass_y = int(math.floor(center_of_mass_y / len(non_zero)))  # TODO: catch exception
-        return (center_of_mass_x, center_of_mass_y)
+        center_of_mass = (center_of_mass_x, center_of_mass_y)
+        return center_of_mass
 
     def convert_cv2_image_to_byte_image_png(self, cv2_image):
         image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
