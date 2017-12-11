@@ -124,13 +124,13 @@ class Massy:
         # Calculate x-component
         center_of_mass_x = 0
         for i in non_zero:
-            center_of_mass_x += i[0][0] / len(non_zero)  # This is ineffective but keeps the sum from overflowing
-        center_of_mass_x = int(math.floor(center_of_mass_x))  # TODO: catch exception
+            center_of_mass_x += int(i[0][0])
+        center_of_mass_x = int(math.floor(center_of_mass_x) / len(non_zero))  # TODO: catch exception
         # Calculate y-component
         center_of_mass_y = 0
         for i in non_zero:
-            center_of_mass_y += i[0][1] / len(non_zero)  # This is ineffective but keeps the sum from overflowing
-        center_of_mass_y = int(math.floor(center_of_mass_y))  # TODO: catch exception
+            center_of_mass_y += int(i[0][1])
+        center_of_mass_y = int(math.floor(center_of_mass_y) / len(non_zero))  # TODO: catch exception
         center_of_mass = (center_of_mass_x, center_of_mass_y)
         return center_of_mass
 
