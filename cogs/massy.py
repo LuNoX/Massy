@@ -19,7 +19,7 @@ class Massy:
     # 2. save image from url                                   X
     # 3. do shape recognition                                  X
     # 4.a) take the biggest shape                              X
-    # b) ask the user for the correct shape
+    #   b) ask the user for the correct shape
     # 5. do the center of mass calculation for that shape      X
     # 6. display center of mass                                X
 
@@ -49,6 +49,7 @@ class Massy:
         hierarchy, contours, contour_mask = cv2.findContours(shape_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Determine correct shape and remove everything else
+        # TODO: implement manual select fully
         if parsed_args.manual_select is True:
             number_of_colours = len(parsed_args.contour_colours)
             counter = 0
@@ -61,18 +62,19 @@ class Massy:
                 # TODO: ask user which shape to use
         else:
             most_complex_contour = (0, contours[0])
-            for i in contours:
+            for index, i in enumerate(contours):
                 if len(i) > most_complex_contour[0]:
-                    most_complex_contour = (len(i), i)
-            cv2.drawContours(cv2_image, [most_complex_contour[1]], -1, parsed_args.contour_colours[0][::-1], 2)
-            contours.remove(most_complex_contour[1])
+                    most_complex_contour = (len(i), i, index)
+            cv2.drawContours(cv2_image, most_complex_contour[1], -1, parsed_args.contour_colours[0][::-1], 2)
+            contours.pop(most_complex_contour[2])
             for i in contours:
                 cv2.drawContours(shape_mask, [i], -1, (0, 0, 0), -1)
 
         center_of_mass = self.determine_center_of_mass(shape_mask)
         # Draw Center of mass
         # TODO: use appropriate colour
-        cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 10, (255, 0, 0)[::-1], 4)
+        cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 10, (255, 0, 0)[::-1], -1)
+        cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 30, (0, 0, 0)[::-1], 20)
 
         image_ready_to_be_sent = self.convert_cv2_image_to_byte_image_png(cv2_image)
 
@@ -83,7 +85,6 @@ class Massy:
                                      center_of_mass[0],
                                      center_of_mass[1]), )
 
-    # TODO: make args not be terminated by kommas
     def parse_arguments(self, args):
         parser = argparse.ArgumentParser()
         parser.add_argument('--manual_select', action='store_true', dest='manual_select', default=False)
@@ -116,12 +117,12 @@ class Massy:
         non_zero = cv2.findNonZero(binary_image)
         center_of_mass_x = 0
         for i in non_zero:
-            center_of_mass_x += i[0][0]
-        center_of_mass_x = int(math.floor(center_of_mass_x / len(non_zero)))  # TODO: catch exception
+            center_of_mass_x += i[0][0] / len(non_zero)  # This is ineffective but keeps the sum from overflowing
+        center_of_mass_x = int(math.floor(center_of_mass_x))  # TODO: catch exception
         center_of_mass_y = 0
         for i in non_zero:
-            center_of_mass_y += i[0][1]
-        center_of_mass_y = int(math.floor(center_of_mass_y / len(non_zero)))  # TODO: catch exception
+            center_of_mass_y += i[0][1] / len(non_zero)  # This is ineffective but keeps the sum from overflowing
+        center_of_mass_y = int(math.floor(center_of_mass_y))  # TODO: catch exception
         center_of_mass = (center_of_mass_x, center_of_mass_y)
         return center_of_mass
 
@@ -129,7 +130,7 @@ class Massy:
         image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
         byte_image = BytesIO()
         pil_image = Image.fromarray(image)
-        pil_image.save(byte_image, format='png')
+        pil_image.save(byte_image, format='jpeg')
         byte_image.seek(0)
         return byte_image
 
