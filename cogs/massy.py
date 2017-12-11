@@ -39,6 +39,8 @@ class Massy:
         cv2_image = cv2_image[:, :, ::-1].copy()  # Convert RGB to BGR
 
         # Turn image into binary image
+        # TODO: allow different values for the different colours (instead of them all having to be the same)
+        # TODO: fix those weird contours probably cause by the same issue
         lower_bound = numpy.array(parsed_args.lower_bound[::-1])
         upper_bound = numpy.array(parsed_args.upper_bound[::-1])
         shape_mask = cv2.inRange(cv2_image, lower_bound, upper_bound)
@@ -49,7 +51,7 @@ class Massy:
         hierarchy, contours, contour_mask = cv2.findContours(shape_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
         # Determine correct shape and remove everything else
-        # TODO: implement manual select fully
+        # TODO: implement manual select fully, not functional at the moment
         if parsed_args.manual_select is True:
             number_of_colours = len(parsed_args.contour_colours)
             counter = 0
@@ -61,17 +63,20 @@ class Massy:
                 cv2.imshow('Image', cv2_image)
                 # TODO: ask user which shape to use
         else:
+            # Determine the most complex contour
             most_complex_contour = (0, contours[0])
             for index, i in enumerate(contours):
                 if len(i) > most_complex_contour[0]:
                     most_complex_contour = (len(i), i, index)
+            # Draw the contour on the image for user reference
             cv2.drawContours(cv2_image, most_complex_contour[1], -1, parsed_args.contour_colours[0][::-1], 2)
+            # Remove everything from the shape_mask except the shape inside the most complex contour
             contours.pop(most_complex_contour[2])
             for i in contours:
                 cv2.drawContours(shape_mask, [i], -1, (0, 0, 0), -1)
 
         center_of_mass = self.determine_center_of_mass(shape_mask)
-        # Draw Center of mass
+        # Draw center of mass
         # TODO: use appropriate colour
         cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 10, (255, 0, 0)[::-1], -1)
         cv2_image = cv2.circle(cv2_image, (center_of_mass[0], center_of_mass[1]), 30, (0, 0, 0)[::-1], 20)
@@ -114,11 +119,14 @@ class Massy:
         return list_of_tuples
 
     def determine_center_of_mass(self, binary_image):
+        # Get all the area segments of the shape
         non_zero = cv2.findNonZero(binary_image)
+        # Calculate x-component
         center_of_mass_x = 0
         for i in non_zero:
             center_of_mass_x += i[0][0] / len(non_zero)  # This is ineffective but keeps the sum from overflowing
         center_of_mass_x = int(math.floor(center_of_mass_x))  # TODO: catch exception
+        # Calculate y-component
         center_of_mass_y = 0
         for i in non_zero:
             center_of_mass_y += i[0][1] / len(non_zero)  # This is ineffective but keeps the sum from overflowing
@@ -127,10 +135,13 @@ class Massy:
         return center_of_mass
 
     def convert_cv2_image_to_byte_image_png(self, cv2_image):
+        # Convert colour space
         image = cv2.cvtColor(cv2_image, cv2.COLOR_BGR2RGB)
+        # Save image as jpeg
         byte_image = BytesIO()
         pil_image = Image.fromarray(image)
         pil_image.save(byte_image, format='jpeg')
+        # Jump to beginning of image
         byte_image.seek(0)
         return byte_image
 
