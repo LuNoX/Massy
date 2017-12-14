@@ -25,6 +25,12 @@ class Massy:
 
     @commands.command(name='centerOfMass', aliases=['centerofmass'], pass_context=True)
     async def center_of_mass(self, ctx, url: str, *args):
+        '''Determines the center of mass of shape in a given image
+        Takes the following parameters:
+        --lower_bound: the lower colour threshold for area selection (values: R G B)
+        --upper_bound: the lower colour threshold for area selection (values: R G B)
+        --contour_colours: the colours to be used for drawing the shape contours (values: R G B R2 G2 B2 R3 ...)
+        --inverse: inverses the selected area for shape recognition'''
         # Parse args
         parsed_args = self.parse_arguments(args)
         parsed_args.contour_colours = self.convert_contour_colours_into_list_of_tuples(parsed_args.contour_colours)
@@ -95,7 +101,7 @@ class Massy:
         parser.add_argument('--manual_select', action='store_true', dest='manual_select', default=False)
         parser.add_argument('--inverse', action='store_true', dest='inverse', default=False)
         parser.add_argument('--lower_bound', nargs="+", type=int, dest='lower_bound', default=[0, 0, 0])
-        parser.add_argument('--upper_bound', nargs="+", type=int, dest='upper_bound', default=[15, 15, 15])
+        parser.add_argument('--upper_bound', nargs="+", type=int, dest='upper_bound', default=[150, 150, 150])
         parser.add_argument('--contour_colours', '--contour_colors', nargs="+", type=int, dest='contour_colours',
                             default=[255, 0, 0])
         parsed_args = parser.parse_args(args)
